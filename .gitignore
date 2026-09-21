@@ -1,0 +1,10 @@
+# Datos creados al ejecutar la aplicación (no pertenecen al código fuente)
+ComparadorProps/biblioteca/
+ComparadorProps/papelera/
+ComparadorProps/proyectos/
+ComparadorProps/respaldos/
+ComparadorProps/biblioteca.db
+
+# Python
+__pycache__/
+*.py[cod]
