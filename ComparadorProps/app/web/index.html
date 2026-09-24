@@ -20,8 +20,10 @@
   <div class="pestanas">
     <button id="tabBiblio" class="on">Biblioteca</button>
     <button id="tabAvance">Avance</button>
+    <button id="tabActividad">Actividad</button>
   </div>
-  <div class="filtroTipo">
+  <div class="filtrosBiblioteca">
+    <input type="search" id="buscar" placeholder="Buscar asset, shot o episodio" autocomplete="off">
     <select id="filtroTipo">
       <option value="">Todos los tipos</option>
       <option value="prop">Props</option>
@@ -30,9 +32,16 @@
       <option value="vestuario">Vestuario</option>
       <option value="otro">Otros</option>
     </select>
+    <select id="filtroEstado" aria-label="Estado de revisión">
+      <option value="">Todos los estados</option>
+      <option value="sin_revisar">Sin revisar</option>
+      <option value="aprobado">Aprobados</option>
+      <option value="cambios">Con cambios</option>
+    </select>
   </div>
   <div class="lista" id="panelBiblio"></div>
   <div class="lista" id="panelAvance" hidden></div>
+  <div class="lista" id="panelActividad" hidden></div>
 </aside>
 
 <main>

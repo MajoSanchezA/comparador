@@ -54,6 +54,16 @@ async function cargarArbol(){
   cont.textContent = '';
   const proyectos = Object.keys(estado.arbol);
   const filtro = el('filtroTipo').value;
+  const filtroEstado = el('filtroEstado').value;
+  const texto = el('buscar').value.trim().toLocaleLowerCase();
+  const coincide = (p, proyecto, episodio, shot) => {
+    const estadoRevision = p.estado || 'sin_revisar';
+    const datos = [p.prop, proyecto, episodio, shot, p.tipo || ''].join(' ').toLocaleLowerCase();
+    return (!filtro || (p.tipo || '') === filtro) &&
+      (!filtroEstado || estadoRevision === filtroEstado) &&
+      (!texto || datos.includes(texto));
+  };
+  let encontrados = 0;
 
   if (!proyectos.length){
     cont.innerHTML = '<div class="vacio">Todavía no hay nada guardado.<br>Sube la primera versión de un prop y aparecerá aquí.</div>';
@@ -62,16 +72,19 @@ async function cargarArbol(){
     const episodios = estado.arbol[proyecto];
     const d1 = document.createElement('details'); d1.className='n1'; d1.open = true;
     d1.appendChild(titulo(proyecto, {proyecto}, contar(episodios)));
+    let hayEnProyecto = false;
     for (const episodio of Object.keys(episodios)){
       const shots = episodios[episodio];
       const d2 = document.createElement('details'); d2.className='n2'; d2.open = true;
       d2.appendChild(titulo(episodio, {proyecto, episodio}, contar(shots)));
+      let hayEnEpisodio = false;
       for (const shot of Object.keys(shots)){
         const props = shots[shot];
+        const visibles = props.filter(p => coincide(p, proyecto, episodio, shot));
+        if (!visibles.length) continue;
         const d3 = document.createElement('details'); d3.className='n3'; d3.open = true;
-        d3.appendChild(titulo(shot, {proyecto, episodio, shot}, contar(props)));
-        for (const p of props){
-          if (filtro && (p.tipo || '') !== filtro) continue;
+        d3.appendChild(titulo(shot, {proyecto, episodio, shot}, visibles.reduce((n, p) => n + p.total, 0)));
+        for (const p of visibles){
           const fila = document.createElement('div');
           fila.className = 'prop'; fila.tabIndex = 0;
           const nombre = document.createElement('span'); nombre.textContent = p.prop;
@@ -95,13 +108,19 @@ async function cargarArbol(){
           fila.onclick = abrir;
           fila.onkeydown = e => { if(e.key==='Enter'){ e.preventDefault(); abrir(); } };
           d3.appendChild(fila);
+          encontrados++;
         }
         d2.appendChild(d3);
+        hayEnEpisodio = true;
       }
-      d1.appendChild(d2);
+      if (hayEnEpisodio){
+        d1.appendChild(d2);
+        hayEnProyecto = true;
+      }
     }
-    cont.appendChild(d1);
+    if (hayEnProyecto) cont.appendChild(d1);
   }
+  if (proyectos.length && !encontrados) cont.innerHTML = '<div class="vacio">No hay assets que coincidan con estos filtros.</div>';
   rellenarSugerencias();
   marcarSeleccion();
 }
@@ -217,6 +236,37 @@ async function cargarAvance(){
   }
 }
 
+async function cargarActividad(){
+  const cont = el('panelActividad');
+  if (!estado.seleccion){
+    cont.innerHTML = '<div class="vacio">Elige un asset en la biblioteca para ver su historial.</div>';
+    return;
+  }
+  cont.innerHTML = '<div class="vacio">Cargando historial…</div>';
+  try {
+    const datos = await api('/api/actividad?' + new URLSearchParams(estado.seleccion));
+    if (!datos.length){
+      cont.innerHTML = '<div class="vacio">Aún no hay actividad registrada para este asset.</div>';
+      return;
+    }
+    cont.textContent = '';
+    for (const item of datos){
+      const tarjeta = document.createElement('div'); tarjeta.className = 'actividad';
+      const accion = document.createElement('div'); accion.className = 'accion'; accion.textContent = item.accion;
+      const meta = document.createElement('div'); meta.className = 'meta';
+      meta.textContent = [item.autor || 'Sin autor', item.fecha.replace('T', ' · ')].join(' · ');
+      tarjeta.append(accion, meta);
+      if (item.detalle){
+        const detalle = document.createElement('div'); detalle.className = 'detalle'; detalle.textContent = item.detalle;
+        tarjeta.appendChild(detalle);
+      }
+      cont.appendChild(tarjeta);
+    }
+  } catch (e) {
+    cont.innerHTML = '<div class="vacio">No se pudo cargar el historial: ' + escapar(e.message) + '</div>';
+  }
+}
+
 async function seleccionar(proyecto, episodio, shot, prop){
   trazoEnCurso = null;
   estado.seleccion = {proyecto, episodio, shot, prop};
@@ -235,6 +285,7 @@ async function seleccionar(proyecto, episodio, shot, prop){
   el('selB').value = estado.versiones[n-1].id;
   marcarSeleccion();
   mostrarPar();
+  if (!el('panelActividad').hidden) cargarActividad();
 }
 
 function marcarSeleccion(){
@@ -1695,13 +1746,22 @@ el('btnGuardar').onclick = async () => {
 
 /* ======================= PESTAÑAS ======================= */
 el('filtroTipo').onchange = cargarArbol;
-el('tabBiblio').onclick = () => cambiarPestana(true);
-el('tabAvance').onclick = () => { cambiarPestana(false); cargarAvance(); };
-function cambiarPestana(biblio){
-  el('tabBiblio').classList.toggle('on', biblio);
-  el('tabAvance').classList.toggle('on', !biblio);
-  el('panelBiblio').hidden = !biblio;
-  el('panelAvance').hidden = biblio;
+el('filtroEstado').onchange = cargarArbol;
+el('buscar').oninput = cargarArbol;
+el('tabBiblio').onclick = () => cambiarPestana('biblioteca');
+el('tabAvance').onclick = () => cambiarPestana('avance');
+el('tabActividad').onclick = () => cambiarPestana('actividad');
+function cambiarPestana(nombre){
+  const biblioteca = nombre === 'biblioteca';
+  const avance = nombre === 'avance';
+  el('tabBiblio').classList.toggle('on', biblioteca);
+  el('tabAvance').classList.toggle('on', avance);
+  el('tabActividad').classList.toggle('on', nombre === 'actividad');
+  el('panelBiblio').hidden = !biblioteca;
+  el('panelAvance').hidden = !avance;
+  el('panelActividad').hidden = nombre !== 'actividad';
+  if (avance) cargarAvance();
+  if (nombre === 'actividad') cargarActividad();
 }
 
 cargarArbol();

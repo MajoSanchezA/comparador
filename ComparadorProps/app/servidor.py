@@ -116,6 +116,22 @@ def preparar_bd():
         """)
         cx.execute("CREATE INDEX IF NOT EXISTS i_notas ON notas(version)")
 
+        cx.execute("""
+            CREATE TABLE IF NOT EXISTS actividad (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                version   INTEGER,
+                proyecto  TEXT NOT NULL,
+                episodio  TEXT NOT NULL,
+                shot      TEXT NOT NULL,
+                prop      TEXT NOT NULL,
+                accion    TEXT NOT NULL,
+                detalle   TEXT,
+                autor     TEXT,
+                fecha     TEXT NOT NULL
+            )
+        """)
+        cx.execute("CREATE INDEX IF NOT EXISTS i_actividad_prop ON actividad(proyecto, episodio, shot, prop, fecha)")
+
         # bases creadas antes de que existiera el tipo de asset
         columnas = [f["name"] for f in cx.execute("PRAGMA table_info(versiones)").fetchall()]
         if "tipo" not in columnas:
@@ -251,6 +267,36 @@ def versiones_de(proyecto, episodio, shot, prop):
     return [dict(f) for f in filas]
 
 
+def registrar_actividad(cx, version, accion, proyecto, episodio, shot, prop, autor="", detalle=""):
+    """Guarda una entrada corta de auditoría para el historial del asset."""
+    cx.execute("""
+        INSERT INTO actividad (version, proyecto, episodio, shot, prop, accion, detalle, autor, fecha)
+        VALUES (?,?,?,?,?,?,?,?,?)
+    """, (version, proyecto, episodio, shot, prop, accion, detalle, autor,
+          datetime.now().isoformat(timespec="seconds")))
+
+
+def identidad_de_version(cx, id_version):
+    return cx.execute("""
+        SELECT id, numero, proyecto, episodio, shot, prop
+        FROM versiones WHERE id=?
+    """, (id_version,)).fetchone()
+
+
+def actividad_de(proyecto, episodio, shot, prop):
+    cx = conectar()
+    try:
+        filas = cx.execute("""
+            SELECT accion, detalle, autor, fecha
+            FROM actividad
+            WHERE proyecto=? AND episodio=? AND shot=? AND prop=?
+            ORDER BY fecha DESC, id DESC LIMIT 60
+        """, (proyecto, episodio, shot, prop)).fetchall()
+    finally:
+        cx.close()
+    return [dict(f) for f in filas]
+
+
 def guardar_version(d):
     datos, extension = decodificar_imagen(d.get("datos"))
     ancho, alto = medir_imagen(datos)
@@ -291,6 +337,8 @@ def guardar_version(d):
                   datetime.now().isoformat(timespec="seconds"),
                   (d.get("tipo") or "").strip()))
             nuevo = cur.lastrowid
+            registrar_actividad(cx, nuevo, "Subió v%d" % numero, proyecto, episodio, shot, prop,
+                                (d.get("autor") or "").strip(), (d.get("nota") or "").strip())
 
     respaldar_bd()
     return {"id": nuevo, "numero": numero, "ancho": ancho, "alto": alto}
@@ -430,13 +478,21 @@ def notas_de(id_version):
 
 def guardar_nota_visual(d):
     with conectar() as cx:
+        version = int(d["version"])
         cur = cx.execute("""
             INSERT INTO notas (version, tipo, datos, texto, autor, color, resuelta, fecha)
             VALUES (?,?,?,?,?,?,0,?)
-        """, (int(d["version"]), d.get("tipo", "general"),
+        """, (version, d.get("tipo", "general"),
               json.dumps(d.get("datos")), (d.get("texto") or "").strip(),
               (d.get("autor") or "").strip(), d.get("color") or "#ff3b30",
               datetime.now().isoformat(timespec="seconds")))
+        identidad = identidad_de_version(cx, version)
+        if identidad:
+            tipo = d.get("tipo", "general")
+            accion = {"general": "Añadió comentario", "pin": "Añadió señal", "trazo": "Añadió dibujo"}.get(tipo, "Añadió nota")
+            registrar_actividad(cx, version, accion, identidad["proyecto"], identidad["episodio"],
+                                identidad["shot"], identidad["prop"], (d.get("autor") or "").strip(),
+                                (d.get("texto") or "").strip())
     respaldar_bd()
     return {"id": cur.lastrowid}
 
@@ -471,8 +527,14 @@ def marcar_estado(d):
     quien = (d.get("quien") or "").strip()
     cuando = datetime.now().isoformat(timespec="seconds") if estado else ""
     with conectar() as cx:
+        id_version = int(d["id"])
         cx.execute("UPDATE versiones SET estado=?, visto_por=?, visto_fecha=? WHERE id=?",
-                   (estado, quien if estado else "", cuando, int(d["id"])))
+                   (estado, quien if estado else "", cuando, id_version))
+        identidad = identidad_de_version(cx, id_version)
+        if identidad:
+            accion = {"aprobado": "Aprobó v%d", "cambios": "Pidió cambios en v%d", "": "Quitó la marca de v%d"}[estado] % identidad["numero"]
+            registrar_actividad(cx, id_version, accion, identidad["proyecto"], identidad["episodio"],
+                                identidad["shot"], identidad["prop"], quien)
     respaldar_bd()
     return {"estado": estado, "visto_por": quien, "visto_fecha": cuando}
 
@@ -480,6 +542,10 @@ def marcar_estado(d):
 def poner_nota(id_version, nota):
     with conectar() as cx:
         cx.execute("UPDATE versiones SET nota=? WHERE id=?", (nota.strip(), id_version))
+        identidad = identidad_de_version(cx, id_version)
+        if identidad:
+            registrar_actividad(cx, id_version, "Actualizó nota de v%d" % identidad["numero"],
+                                identidad["proyecto"], identidad["episodio"], identidad["shot"], identidad["prop"])
     respaldar_bd()
 
 
@@ -539,6 +605,13 @@ class Manejador(BaseHTTPRequestHandler):
 
             if camino == "/api/notas":
                 return self.json(notas_de(int(consulta.get("version", ["0"])[0])))
+
+            if camino == "/api/actividad":
+                faltan = [k for k in ("proyecto", "episodio", "shot", "prop") if k not in consulta]
+                if faltan:
+                    return self.error("Faltan datos: " + ", ".join(faltan))
+                return self.json(actividad_de(*[consulta[k][0] for k in
+                                                ("proyecto", "episodio", "shot", "prop")]))
 
             if camino == "/api/avance":
                 return self.json(avance(consulta.get("dias", ["7"])[0]))
