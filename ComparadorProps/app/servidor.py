@@ -6,7 +6,7 @@ Comparador de versiones de props — servidor local.
 Guarda los archivos originales tal cual (sin recomprimir) en la carpeta
 'biblioteca' y la ficha de cada version en 'biblioteca.db' (SQLite).
 
-Para arrancar:  python servidor.py
+Para arrancar:  python app/servidor.py
 """
 
 import base64
@@ -32,13 +32,15 @@ PUERTO = 8777
 # También se activa arrancando con "Abrir para el equipo.bat".
 ABRIR_A_LA_RED = False
 
-RAIZ = os.path.dirname(os.path.abspath(__file__))
-WEB = os.path.join(RAIZ, "web")
-BIBLIOTECA = os.path.join(RAIZ, "biblioteca")
-PAPELERA = os.path.join(RAIZ, "papelera")
-PROYECTOS = os.path.join(RAIZ, "proyectos")
-BD = os.path.join(RAIZ, "biblioteca.db")
-RESPALDOS = os.path.join(RAIZ, "respaldos")
+APP = os.path.dirname(os.path.abspath(__file__))
+RAIZ = os.path.dirname(APP)
+WEB = os.path.join(APP, "web")
+DATOS = os.path.join(RAIZ, "data")
+BIBLIOTECA = os.path.join(DATOS, "biblioteca")
+PAPELERA = os.path.join(DATOS, "papelera")
+PROYECTOS = os.path.join(DATOS, "proyectos")
+BD = os.path.join(DATOS, "biblioteca.db")
+RESPALDOS = os.path.join(DATOS, "respaldos")
 
 # El navegador envía las imágenes codificadas en base64. El límite de petición
 # deja margen para esa codificación sin permitir que una subida agote la memoria.
@@ -65,6 +67,7 @@ def conectar():
 
 
 def preparar_bd():
+    os.makedirs(DATOS, exist_ok=True)
     os.makedirs(BIBLIOTECA, exist_ok=True)
     os.makedirs(PROYECTOS, exist_ok=True)
     os.makedirs(RESPALDOS, exist_ok=True)

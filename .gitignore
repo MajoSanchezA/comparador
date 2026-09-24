@@ -1,9 +1,6 @@
 # Datos creados al ejecutar la aplicación (no pertenecen al código fuente)
-ComparadorProps/biblioteca/
-ComparadorProps/papelera/
-ComparadorProps/proyectos/
-ComparadorProps/respaldos/
-ComparadorProps/biblioteca.db
+ComparadorProps/data/*
+!ComparadorProps/data/.gitkeep
 
 # Python
 __pycache__/

@@ -10,7 +10,7 @@ Guarda cada versión de un prop y te deja comparar dos cualquiera, a calidad ori
 
 La ventana negra es el servidor: mientras esté abierta el comparador funciona.
 Si el `.bat` se cierra de golpe, es que Python no está en el PATH — abre la carpeta
-en la terminal y escribe `python servidor.py`.
+en la terminal y escribe `python app/servidor.py`.
 
 ## Cómo se usa
 
@@ -95,7 +95,7 @@ un shot entero, un episodio o el proyecto completo. Te pregunta antes y te dice
 cuántas versiones se van a quitar.
 
 **Nada se borra del disco de verdad.** Los archivos se mueven a la carpeta
-`papelera/`, dentro de una subcarpeta con la fecha y hora del borrado. Si te
+`data/papelera/`, dentro de una subcarpeta con la fecha y hora del borrado. Si te
 arrepientes, ahí están; se recuperan a mano desde el explorador de Windows.
 
 Esa carpeta no se vacía sola, así que cada tanto conviene revisarla y borrarla tú
@@ -105,11 +105,17 @@ si ya no la necesitas.
 
 ```
 ComparadorProps/
-├── servidor.py            el programa
-├── biblioteca.db          las fichas (SQLite): quién, cuándo, qué versión, qué nota
-├── biblioteca/            los archivos originales, sin recomprimir
-│   └── TukuToon/EP107/SH05/Caparazon_de_nido/v001.png
-└── web/index.html         la interfaz
+├── app/
+│   ├── servidor.py        servidor y API
+│   └── web/               interfaz (HTML, CSS y JavaScript)
+├── data/                  datos creados por la aplicación (no se suben a Git)
+│   ├── biblioteca.db      fichas y comentarios (SQLite)
+│   ├── biblioteca/        archivos originales, sin recomprimir
+│   ├── papelera/          archivos borrados recuperables
+│   ├── proyectos/         logos de proyectos
+│   └── respaldos/         copias automáticas de la base de datos
+├── tests/                 pruebas automáticas
+└── Abrir comparador.bat   inicio en este PC
 ```
 
 Los PNG se copian byte por byte, nadie los toca. Puedes abrir esa carpeta en el
@@ -143,8 +149,8 @@ tal como está cualquiera en la red puede subir versiones, no hay contraseñas.
 ## Respaldo automático
 
 Cada vez que cambias la biblioteca, el programa guarda una copia de la ficha del
-día en `respaldos/biblioteca-AAAA-MM-DD.db`. Esa copia protege el catálogo,
-comentarios y aprobaciones. Los archivos originales siguen en `biblioteca/`, así
+día en `data/respaldos/biblioteca-AAAA-MM-DD.db`. Esa copia protege el catálogo,
+comentarios y aprobaciones. Los archivos originales siguen en `data/biblioteca/`, así
 que para un respaldo completo conviene copiar ambas carpetas a otra unidad o al
 Drive del estudio.
 
